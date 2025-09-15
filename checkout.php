@@ -14,7 +14,7 @@ if (isset($_POST['remove_from_cart'])) {
         unset($_SESSION['keranjang'][$id_produk]);
 
         if ($jumlah_produk == 1) {
-            header("Location: cart-details.php");
+            header("Location: checkout.php");
             exit();
         }
     }
@@ -154,7 +154,7 @@ if (isset($_POST['remove_from_cart'])) {
                     <td><?php echo $jumlah; ?></td>
                     <td>Rp.<?php echo number_format($produk['harga'] * $jumlah, 0, ',', '.'); ?> </td>
                     <td>
-                        <form action="" method="post">
+                        <form action="" method="post" onsubmit="return confirm('Yakin ingin menghapus produk ini dari keranjang?');"">
                             <input type="hidden" name="id_produk" value="<?php echo htmlspecialchars($id_produk); ?>">
                             <button type="submit" name="remove_from_cart">Hapus</button>
                         </form>
@@ -209,11 +209,5 @@ function pesanWA() {
 
 <!-- Bootstrap JS -->
 <script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
-
-
-<div style="text-align:center; margin-top:20px;">
-        <a href="proseslogin.php" class="btn">Lanjut Belanja</a>
-        <a href="pembayaran.php" class="btn bayar">Pembayaran</a>
-    </div>
     </body>
 </html>
