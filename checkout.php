@@ -20,6 +20,23 @@ if (isset($_POST['remove_from_cart'])) {
     }
 }
 
+// Hapus riwayat pemesanan
+if(isset($_POST['hapus_riwayat'])) {
+    $id_riwayat = $_POST['id_riwayat'];
+    $conn->query("DELETE FROM riwayat_pemesanan WHERE id_riwayat='$id_riwayat'");
+    header('Location: checkout.php');
+    exit();
+}
+
+/* Hapus riwayat pemesanan
+if(isset($_POST['hapus_riwayat'])) {
+    $id_riwayat = $_POST['id_riwayat'];
+    $koneksi = mysqli_connect('localhost','root','','umkm_muteg');
+    mysqli_query($koneksi, "DELETE FROM riwayat WHERE id_riwayat='$id_riwayat'");
+    header('Location: checkout.php?riwayat=1');
+    exit();
+}
+    */
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -163,7 +180,7 @@ if (isset($_POST['remove_from_cart'])) {
                  <?php endforeach; ?>
                 <tr>
                     <td colspan="3"><strong>Total Keseluruhan:</strong></td>
-                    <td colspan="2">Rp. <?php echo number_format($total_keranjang, 0, ',', '.'); ?></td> <!-- Tampilkan total keranjang -->
+                    <td colspan="2">Total  Rp. <?php echo number_format($total_keranjang, 0, ',', '.'); ?></td> <!-- Tampilkan total keranjang -->
                 </tr>
             </tbody>
         </table>
@@ -177,28 +194,103 @@ if (isset($_POST['remove_from_cart'])) {
             <img src="https://img.icons8.com/ios-filled/18/ffffff/whatsapp.png" style="margin-bottom:3px; margin-right:4px;">Pesan via WhatsApp
         </button>
     </form>
-    <script>
+
+    <!-- Section Riwayat Pemesanan -->
+<div class="row container mx-auto my-5 py-4" style="background-color: rgba(255,255,255,0.9); border-radius: 12px;">
+    <h4><strong>Riwayat Pemesanan</strong></h4>
+    <table class="table table-striped mt-3">
+        <thead>
+            <tr>
+                <th>No</th>
+                <th>Nama Pemesan</th>
+                <th>Alamat</th>
+                <th>Isi Pesanan</th>
+                <th>Total</th>
+                <th>Tanggal</th>
+                <th>Aksi</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php 
+            $no = 1;
+            $query = "SELECT * FROM riwayat_pemesanan ORDER BY tanggal_pesan DESC";
+            $result = $conn->query($query);
+            if ($result->num_rows > 0):
+                while($row = $result->fetch_assoc()):
+            ?>
+            <tr>
+                <td><?= $no++ ?></td>
+                <td><?= htmlspecialchars($row['nama_pemesan']) ?></td>
+                <td><?= htmlspecialchars($row['alamat_pemesan']) ?></td>
+                <td><pre style="white-space: pre-wrap;"><?= htmlspecialchars($row['isi_pesanan']) ?></pre></td>
+                <td>Rp. <?= number_format($row['total'], 0, ',', '.') ?></td>
+                <td><?= date('d/m/Y H:i', strtotime($row['tanggal_pesan'])) ?></td>
+                <td>
+                    <form method="post" style="display:inline;">
+                        <input type="hidden" name="id_riwayat" value="<?= $row['id_riwayat'] ?>">
+                        <button type="submit" name="hapus_riwayat" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus riwayat ini?');">Hapus</button>
+                    </form>
+                </td>
+            </tr>
+            <?php 
+                endwhile;
+            else:
+            ?>
+            <tr>
+                <td colspan="7" class="text-center">Belum ada riwayat pemesanan.</td>
+            </tr>
+            <?php endif; ?>
+        </tbody>
+    </table>
+</div>
+
+<script>
 function pesanWA() {
     var namaPemesan = document.getElementById('nama_pemesan').value.trim();
     var alamatPemesan = document.getElementById('alamat_pemesan').value.trim();
     var produk = [];
     var rows = document.querySelectorAll('table tbody tr');
+    var totalHarga = 0;
+
     rows.forEach(function(row) {
-        var nama = row.cells[1]?.innerText?.trim();
-        var jumlah = row.cells[2]?.innerText?.trim();
-        var harga = row.cells[3]?.innerText?.trim();
-        if(nama && jumlah && harga) {
-            produk.push('Produk: ' + nama + '\nJumlah: ' + jumlah + '\nHarga: ' + harga);
+        let nama = row.cells[1]?.innerText?.trim();
+        let jumlah = row.cells[2]?.innerText?.trim();
+        let harga = row.cells[3]?.innerText?.trim();
+
+        // Hanya ambil data baris produk, bukan total 
+        if (nama && jumlah && harga && !nama.toLowerCase().includes("total")) {
+            produk.push(`Produk: ${nama}\nJumlah: ${jumlah}\nHarga: ${harga}`);
+            let angka = harga.replace(/[^\d]/g, '');
+            totalHarga += parseInt(angka);
         }
     });
-    var total = '';
-    var totalRow = document.querySelector('table tbody tr:last-child td[colspan="2"]');
-    if(totalRow) total = totalRow.innerText.trim();
-    var pesan = 'Halo, saya ingin memesan:\nNama: ' + namaPemesan + '\nAlamat: ' + alamatPemesan + '\n' + produk.join('\n---\n') + '\n' + total;
-    var waUrl = 'https://wa.me/6282276684455?text=' + encodeURIComponent(pesan);
-    window.open(waUrl, '_blank');
+
+    let isiPesanan = produk.join('\n---\n');
+
+    // Simpan ke database via fetch
+    fetch('save_order.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            nama: namaPemesan,
+            alamat: alamatPemesan,
+            produk: isiPesanan,
+            total: totalHarga
+        })
+    }).then(response => response.json())
+      .then(data => {
+          if(data.status === 'success') {
+              // Buka WhatsApp setelah penyimpanan berhasil
+              let pesan = `Halo, saya ingin memesan:\nNama: ${namaPemesan}\nAlamat: ${alamatPemesan}\n${isiPesanan}\nTotal: Rp ${totalHarga.toLocaleString('id-ID')}`;
+              let waUrl = 'https://wa.me/6282276684455?text=' + encodeURIComponent(pesan);
+              window.open(waUrl, '_blank');
+          } else {
+              alert("Gagal menyimpan riwayat pemesanan: " + data.message);
+          }
+      });
 }
 </script>
+
         </div>
         
         
@@ -207,7 +299,6 @@ function pesanWA() {
 <!-- End Section Services -->
 </div>
 
-<!-- Bootstrap JS -->
-<script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
+<!-- Bootstrap JS --><script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     </body>
 </html>
